@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.9 - 2026-09-03
+
+- Fix real send-button activation: Douyin's send control is an SVG, so dispatch a bubbling mouse click instead of calling the unavailable SVG `.click()` method.
+- Report unexpected execution exceptions in the panel instead of leaving the status stuck at “正在点击发送”.
+
 ## 1.0.8 - 2026-09-03
 
 - Match the verified Douyin message entry (`data-e2e="something-button"`) by its visible “消息” label instead of relying only on the outdated `im-entry` identifier.

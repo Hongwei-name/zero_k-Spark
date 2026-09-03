@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Douyin Spark Helper (Local)
 // @namespace    https://github.com/zero-k-spark
-// @version      1.0.8
+// @version      1.0.9
 // @description  Local conversation selection and dry-run helper for Douyin web messages.
 // @match        https://www.douyin.com/*
 // @grant        none
@@ -269,7 +269,10 @@
       target.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerId: 1, pointerType: 'mouse', isPrimary: true }));
     }
     target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window }));
-    target.click();
+    // Douyin's send control is an SVGElement. Unlike HTMLButtonElement it does
+    // not reliably expose .click(), which previously threw and left the task at
+    // “正在点击发送”. Dispatch the bubbling click React listens for instead.
+    target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
   }
 
   function visibleFirst(selectors, root = document) {
@@ -395,24 +398,29 @@
       .map((name) => ({ name, node: findConversationNode(name) }));
     if (!targets.length) return notify('没有可执行的会话，或所选好友今天已处理。', 'warning');
 
-    for (const { name, node } of targets) {
-      notify(`正在打开会话：${name}`);
-      const opened = await openConversation(name, node);
-      if (!opened) return notify(`已停止：会话标题未确认是“${name}”，为防止错发未继续。`, 'error');
-      const message = resolveMessage(name);
-      if (state.dryRun) {
-        notify(`正在验证输入区和发送控件：${name}`);
-        const composer = validateComposer();
-        if (!composer.input) return notify(`“${name}”验证失败：未找到聊天输入区。`, 'error');
-        if (!composer.sendControl) return notify(`“${name}”验证失败：未找到发送控件。`, 'error');
-        console.info('[Spark Helper] Dry run:', { recipient: name, message });
-        continue;
+    try {
+      for (const { name, node } of targets) {
+        notify(`正在打开会话：${name}`);
+        const opened = await openConversation(name, node);
+        if (!opened) return notify(`已停止：会话标题未确认是“${name}”，为防止错发未继续。`, 'error');
+        const message = resolveMessage(name);
+        if (state.dryRun) {
+          notify(`正在验证输入区和发送控件：${name}`);
+          const composer = validateComposer();
+          if (!composer.input) return notify(`“${name}”验证失败：未找到聊天输入区。`, 'error');
+          if (!composer.sendControl) return notify(`“${name}”验证失败：未找到发送控件。`, 'error');
+          console.info('[Spark Helper] Dry run:', { recipient: name, message });
+          continue;
+        }
+        const error = await sendMessage(message);
+        if (error) return notify(`“${name}”发送失败：${error}`, 'error');
+        state.sentOn[name] = today();
+        saveState();
+        await new Promise((resolve) => setTimeout(resolve, 800));
       }
-      const error = await sendMessage(message);
-      if (error) return notify(`“${name}”发送失败：${error}`, 'error');
-      state.sentOn[name] = today();
-      saveState();
-      await new Promise((resolve) => setTimeout(resolve, 800));
+    } catch (error) {
+      console.error('[Spark Helper] Task failed:', error);
+      return notify(`执行异常：${error instanceof Error ? error.message : String(error)}`, 'error');
     }
     notify(state.dryRun ? '验证完成：已检查会话、输入区和发送控件，未发送任何消息。' : '任务完成。', 'success');
   }
