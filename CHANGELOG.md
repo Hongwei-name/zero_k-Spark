@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.7 - 2026-09-03
+
+- Automatically open the Douyin message drawer and, when necessary, return from an open chat to the conversation list before locating targets.
+- Require the visible chat header to match the selected recipient before any message action; an input box alone no longer passes verification.
+- Use the browser's native editable-content path only, preventing text that appears in the editor but is treated as an empty message by Douyin.
+- Send through the interactive send-control container and show each open, write, readiness, and send stage in the panel status.
+
 ## 1.0.6 - 2026-09-03
 
 - Restrict friend discovery to actual conversation rows inside the Douyin message drawer.

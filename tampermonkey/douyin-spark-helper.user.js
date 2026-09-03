@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Douyin Spark Helper (Local)
 // @namespace    https://github.com/zero-k-spark
-// @version      1.0.6
+// @version      1.0.7
 // @description  Local conversation selection and dry-run helper for Douyin web messages.
 // @match        https://www.douyin.com/*
 // @grant        none
@@ -22,6 +22,18 @@
 
   // Centralize target-page selectors so updates do not affect panel behavior.
   const SELECTORS = {
+    messageEntry: [
+      '[data-e2e="im-entry"]',
+      '[data-e2e*="im-entry"]',
+    ],
+    messageDialog: '[data-e2e="im-dialog"]',
+    conversationBackControls: [
+      '[data-e2e="im-dialog"] [data-e2e*="back"]',
+      '[data-e2e="im-dialog"] [aria-label*="返回"]',
+      '[data-e2e="im-dialog"] [aria-label*="Back"]',
+      '[data-e2e="im-dialog"] [class*="ChatHeader"] [class*="back"]',
+      '[data-e2e="im-dialog"] [class*="chat-header"] [class*="back"]',
+    ],
     conversationItems: [
       '[data-e2e="conversation-item"]',
       '[data-e2e*="conversation"]',
@@ -106,7 +118,8 @@
   }
 
   function messageDialog() {
-    return document.querySelector('[data-e2e="im-dialog"]') || document;
+    const dialog = document.querySelector(SELECTORS.messageDialog);
+    return dialog && isVisible(dialog) ? dialog : null;
   }
 
   function displayName(node) {
@@ -118,6 +131,7 @@
 
   function getConversationNodes() {
     const dialog = messageDialog();
+    if (!dialog) return [];
     const exactRows = uniqueNodes([...dialog.querySelectorAll('[data-e2e="conversation-item"]')]);
     const rows = exactRows.length
       ? exactRows
@@ -144,7 +158,9 @@
 
     // Manual targets use a limited text fallback. Prefer the smallest visible match
     // to avoid treating the entire message page as one conversation.
-    const matches = uniqueNodes([...messageDialog().querySelectorAll('a, button, [role="listitem"], li, div, span')])
+    const dialog = messageDialog();
+    if (!dialog) return null;
+    const matches = uniqueNodes([...dialog.querySelectorAll('a, button, [role="listitem"], li, div, span')])
       .filter((node) => textLines(node).includes(name))
       .sort((left, right) => (left.innerText || '').length - (right.innerText || '').length);
     return matches.length ? closestConversationNode(matches[0]) : null;
@@ -207,6 +223,7 @@
 
   function activeTitleMatches(name) {
     const dialog = messageDialog();
+    if (!dialog) return false;
     const titleNodes = [
       ...SELECTORS.conversationTitle.flatMap((selector) => [...dialog.querySelectorAll(selector)]),
       ...dialog.querySelectorAll('h1, h2'),
@@ -216,6 +233,7 @@
 
   function visibleMessageInput() {
     const dialog = messageDialog();
+    if (!dialog) return null;
     for (const selector of SELECTORS.messageInputs) {
       const input = uniqueNodes([...dialog.querySelectorAll(selector)])[0];
       if (input) return input;
@@ -225,6 +243,7 @@
 
   function visibleSendControl() {
     const dialog = messageDialog();
+    if (!dialog) return null;
     for (const selector of SELECTORS.sendControls) {
       const control = uniqueNodes([...dialog.querySelectorAll(selector)])[0];
       if (control) return control;
@@ -237,20 +256,73 @@
   }
 
   function clickElement(node) {
+    const target = node.closest('button, [role="button"], .messageMsgInputpublishBtn, [data-e2e*="send"]') || node;
     if (window.PointerEvent) {
-      node.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerId: 1, pointerType: 'mouse', isPrimary: true }));
+      target.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerId: 1, pointerType: 'mouse', isPrimary: true }));
     }
-    node.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window }));
+    target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window }));
     if (window.PointerEvent) {
-      node.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerId: 1, pointerType: 'mouse', isPrimary: true }));
+      target.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerId: 1, pointerType: 'mouse', isPrimary: true }));
     }
-    node.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window }));
-    node.click();
+    target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window }));
+    target.click();
+  }
+
+  function visibleFirst(selectors, root = document) {
+    for (const selector of selectors) {
+      const node = uniqueNodes([...root.querySelectorAll(selector)])[0];
+      if (node) return node;
+    }
+    return null;
+  }
+
+  async function ensureMessageDialogOpen() {
+    if (messageDialog()) return true;
+    const entry = visibleFirst(SELECTORS.messageEntry);
+    if (!entry) return false;
+    clickElement(entry);
+    return Boolean(await waitFor(messageDialog, 5000));
+  }
+
+  async function ensureConversationListOpen() {
+    if (getConversationNodes().length) return true;
+    const dialog = messageDialog();
+    if (!dialog) return false;
+    const back = findConversationBackControl(dialog);
+    if (!back) return false;
+    clickElement(back);
+    return Boolean(await waitFor(() => getConversationNodes().length, 3500));
+  }
+
+  function findConversationBackControl(dialog) {
+    const knownControl = visibleFirst(SELECTORS.conversationBackControls, dialog);
+    if (knownControl) return knownControl;
+
+    // Current Douyin chat headers expose the title but not a stable back-button data attribute.
+    // The only visible interactive icon positioned to the title's left is the conversation-list back control.
+    const title = uniqueNodes([...dialog.querySelectorAll('.StackLayoutStackChatHeadertitle')])[0];
+    if (!title) return null;
+    const titleRect = title.getBoundingClientRect();
+    const candidates = uniqueNodes([...dialog.querySelectorAll('button, [role="button"], svg')])
+      .filter((node) => {
+        const rect = node.getBoundingClientRect();
+        return rect.right <= titleRect.left && rect.bottom >= titleRect.top && rect.top <= titleRect.bottom;
+      })
+      .sort((left, right) => right.getBoundingClientRect().right - left.getBoundingClientRect().right);
+    return candidates[0] || null;
   }
 
   async function openConversation(name, node) {
     clickElement(node);
-    return waitFor(() => activeTitleMatches(name) || visibleMessageInput(), 3000);
+    return waitFor(() => activeTitleMatches(name), 3500);
+  }
+
+  function selectComposerContent(input) {
+    const range = document.createRange();
+    range.selectNodeContents(input);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
   }
 
   function writeMessage(input, message) {
@@ -259,19 +331,15 @@
       const descriptor = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')
         || Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
       descriptor?.set?.call(input, message);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
     } else {
-      const range = document.createRange();
-      range.selectNodeContents(input);
-      const selection = window.getSelection();
-      selection?.removeAllRanges();
-      selection?.addRange(range);
+      selectComposerContent(input);
+      document.execCommand?.('delete', false);
       const inserted = document.execCommand?.('insertText', false, message);
-      if (!inserted || inputText(input) !== normalizeMessage(message)) {
-        range.deleteContents();
-        range.insertNode(document.createTextNode(message));
-      }
+      // Slate only synchronizes its message model through the browser edit path.
+      // Do not mutate textContent as a fallback: it looks filled but sends an empty message.
+      if (!inserted) return false;
     }
-    input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: message }));
     return inputText(input) === normalizeMessage(message);
   }
 
@@ -284,13 +352,19 @@
   }
 
   async function sendMessage(message) {
+    notify('正在写入消息');
     const input = await waitFor(visibleMessageInput);
     if (!input) return '未找到消息输入框。';
     const written = writeMessage(input, message);
     const ready = written || await waitFor(() => inputText(input) === normalizeMessage(message), 1000);
     if (!ready) return '消息未写入输入框，已取消发送。';
+    notify('正在确认发送控件');
     const sendControl = await waitFor(visibleSendControl);
     if (!sendControl) return '未找到发送控件。';
+    if (sendControl.matches('[disabled], [aria-disabled="true"]') || sendControl.closest('[disabled], [aria-disabled="true"]')) {
+      return '发送控件当前不可用，已取消发送。';
+    }
+    notify('正在点击发送');
     clickElement(sendControl);
     const sent = await waitFor(() => inputText(input) === '', 3000);
     return sent ? '' : '消息未离开输入框，未标记为发送成功。';
@@ -298,6 +372,13 @@
 
   async function run() {
     if (!state.enabled) return notify('请先在面板中勾选“启用任务”。', 'warning');
+    notify('正在打开私信列表');
+    if (!await ensureMessageDialogOpen()) {
+      return notify('未能打开私信抽屉，请确认页面已登录且“消息”入口可见。', 'error');
+    }
+    if (!await ensureConversationListOpen()) {
+      return notify('未能打开会话列表。请先从当前聊天返回会话列表后重试。', 'error');
+    }
     const missing = state.targets.filter((name) => !findConversationNode(name));
     if (missing.length) return notify(`未找到会话：${missing.join('、')}。请打开私信列表后刷新。`, 'warning');
     const targets = state.targets
@@ -306,11 +387,12 @@
     if (!targets.length) return notify('没有可执行的会话，或所选好友今天已处理。', 'warning');
 
     for (const { name, node } of targets) {
-      notify(`正在验证会话：${name}`);
+      notify(`正在打开会话：${name}`);
       const opened = await openConversation(name, node);
-      if (!opened) return notify(`已停止：无法打开“${name}”的聊天窗口。`, 'error');
+      if (!opened) return notify(`已停止：会话标题未确认是“${name}”，为防止错发未继续。`, 'error');
       const message = resolveMessage(name);
       if (state.dryRun) {
+        notify(`正在验证输入区和发送控件：${name}`);
         const composer = validateComposer();
         if (!composer.input) return notify(`“${name}”验证失败：未找到聊天输入区。`, 'error');
         if (!composer.sendControl) return notify(`“${name}”验证失败：未找到发送控件。`, 'error');
@@ -324,6 +406,14 @@
       await new Promise((resolve) => setTimeout(resolve, 800));
     }
     notify(state.dryRun ? '验证完成：已检查会话、输入区和发送控件，未发送任何消息。' : '任务完成。', 'success');
+  }
+
+  async function refreshConversationList() {
+    notify('正在打开私信列表');
+    if (!await ensureMessageDialogOpen() || !await ensureConversationListOpen()) {
+      return notify('未能打开会话列表，请确认页面已登录。', 'error');
+    }
+    renderTargets();
   }
 
   function applyPanelPosition(root) {
@@ -386,7 +476,7 @@
     root.querySelector('[data-role="enabled"]').addEventListener('change', (event) => { state.enabled = event.target.checked; saveState(); });
     root.querySelector('[data-role="dry-run"]').addEventListener('change', (event) => { state.dryRun = event.target.checked; saveState(); });
     root.querySelector('[data-role="template"]').addEventListener('change', (event) => { state.template = event.target.value.trim(); saveState(); });
-    root.querySelector('[data-action="refresh"]').addEventListener('click', renderTargets);
+    root.querySelector('[data-action="refresh"]').addEventListener('click', refreshConversationList);
     root.querySelector('[data-action="run"]').addEventListener('click', run);
     root.querySelector('[data-action="add-target"]').addEventListener('click', addManualTarget);
     root.querySelector('[data-role="manual-target"]').addEventListener('keydown', (event) => {
