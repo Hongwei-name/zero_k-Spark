@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import webbrowser
 from pathlib import Path
@@ -13,7 +14,14 @@ from apps.desktop.store import ClientStore
 
 
 ROOT = Path(__file__).resolve().parents[2]
-STORE_PATH = ROOT / "data" / "spark-client.json"
+
+
+def client_store_path() -> Path:
+    """Keep installed EXE configuration out of its potentially read-only folder."""
+    if getattr(sys, "frozen", False):
+        local_app_data = Path(os.environ.get("LOCALAPPDATA", Path.home()))
+        return local_app_data / "zero_k-Spark" / "spark-client.json"
+    return ROOT / "data" / "spark-client.json"
 
 
 class SparkDesktopApp:
@@ -235,7 +243,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Spark Helper desktop companion")
     parser.add_argument("--smoke-test", action="store_true", help="validate persistent storage without opening the UI")
     arguments = parser.parse_args()
-    store = ClientStore(STORE_PATH)
+    store = ClientStore(client_store_path())
     if arguments.smoke_test:
         config = store.load()
         assert isinstance(config["targets"], list)

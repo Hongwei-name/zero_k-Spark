@@ -39,3 +39,9 @@ python -m apps.desktop.main
 ```
 
 客户端保存好友、文案、发送窗口、Dry Run 设置和本地执行记录到 `data/spark-client.json`。实际网页私信操作由已安装的油猴脚本执行。
+
+生成 Windows EXE：
+
+```powershell
+.\scripts\Build-Windows.ps1 -Python python
+```

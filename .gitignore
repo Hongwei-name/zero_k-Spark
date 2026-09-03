@@ -5,6 +5,7 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 data/*.db
+data/spark-client.json
 data/screenshots/*
 data/traces/*
 !data/.gitkeep
@@ -14,3 +15,5 @@ playwright-report/
 test-results/
 node_modules/
 dist/
+build/
+*.spec

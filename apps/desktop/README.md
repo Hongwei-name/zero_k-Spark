@@ -7,3 +7,11 @@ python -m apps.desktop.main
 ```
 
 配置保存到 `data/spark-client.json`。客户端管理好友、文案、任务开关、随机发送窗口和本地执行记录；实际抖音页面操作仍由 Tampermonkey 脚本负责。
+
+## Windows EXE
+
+```powershell
+.\scripts\Build-Windows.ps1 -Python python
+```
+
+打包产物为 `dist\SparkHelperClient.exe`。EXE 版配置保存到 `%LOCALAPPDATA%\zero_k-Spark\spark-client.json`。
