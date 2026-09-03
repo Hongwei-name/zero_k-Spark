@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.8 - 2026-09-03
+
+- Match the verified Douyin message entry (`data-e2e="something-button"`) by its visible “消息” label instead of relying only on the outdated `im-entry` identifier.
+- Match the verified red send SVG (`messageMsgInputpublishBtn`, `e2e-send-msg-btn`) directly, including layouts where it is outside the `im-dialog` wrapper.
+
 ## 1.0.7 - 2026-09-03
 
 - Automatically open the Douyin message drawer and, when necessary, return from an open chat to the conversation list before locating targets.

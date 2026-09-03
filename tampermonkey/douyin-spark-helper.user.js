@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Douyin Spark Helper (Local)
 // @namespace    https://github.com/zero-k-spark
-// @version      1.0.7
+// @version      1.0.8
 // @description  Local conversation selection and dry-run helper for Douyin web messages.
 // @match        https://www.douyin.com/*
 // @grant        none
@@ -24,7 +24,8 @@
   const SELECTORS = {
     messageEntry: [
       '[data-e2e="im-entry"]',
-      '[data-e2e*="im-entry"]',
+      'div.iLNqted2.DiddnkXT[data-e2e="something-button"]',
+      '[data-e2e="something-button"]',
     ],
     messageDialog: '[data-e2e="im-dialog"]',
     conversationBackControls: [
@@ -61,6 +62,8 @@
       'textarea',
     ],
     sendControls: [
+      'svg.messageMsgInputpublishBtn.e2e-send-msg-btn',
+      'svg.messageMsgInputpublishBtn.messageMsgInputpublishRedBtn',
       '[data-e2e="msg-input"] .e2e-send-msg-btn',
       '[data-e2e="msg-input"] .messageMsgInputpublishBtn',
       'button[type="submit"]',
@@ -232,8 +235,7 @@
   }
 
   function visibleMessageInput() {
-    const dialog = messageDialog();
-    if (!dialog) return null;
+    const dialog = messageDialog() || document;
     for (const selector of SELECTORS.messageInputs) {
       const input = uniqueNodes([...dialog.querySelectorAll(selector)])[0];
       if (input) return input;
@@ -242,8 +244,10 @@
   }
 
   function visibleSendControl() {
-    const dialog = messageDialog();
-    if (!dialog) return null;
+    // The current Douyin send SVG is rendered beside the message drawer rather
+    // than beneath its data-e2e wrapper, so search the page when that wrapper
+    // is absent. uniqueNodes still excludes this script's panel.
+    const dialog = messageDialog() || document;
     for (const selector of SELECTORS.sendControls) {
       const control = uniqueNodes([...dialog.querySelectorAll(selector)])[0];
       if (control) return control;
@@ -276,9 +280,14 @@
     return null;
   }
 
+  function findMessageEntry() {
+    const entries = SELECTORS.messageEntry.flatMap((selector) => [...document.querySelectorAll(selector)]);
+    return uniqueNodes(entries).find((node) => textLines(node).includes('消息')) || null;
+  }
+
   async function ensureMessageDialogOpen() {
     if (messageDialog()) return true;
-    const entry = visibleFirst(SELECTORS.messageEntry);
+    const entry = findMessageEntry();
     if (!entry) return false;
     clickElement(entry);
     return Boolean(await waitFor(messageDialog, 5000));
