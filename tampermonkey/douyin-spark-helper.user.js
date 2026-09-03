@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Douyin Spark Helper (Local)
 // @namespace    https://github.com/zero-k-spark
-// @version      1.0.5
+// @version      1.0.6
 // @description  Local conversation selection and dry-run helper for Douyin web messages.
 // @match        https://www.douyin.com/*
 // @grant        none
@@ -105,6 +105,10 @@
     return [...new Set(nodes)].filter((node) => node instanceof Element && !panel?.contains(node) && isVisible(node));
   }
 
+  function messageDialog() {
+    return document.querySelector('[data-e2e="im-dialog"]') || document;
+  }
+
   function displayName(node) {
     return textLines(node).find((line) => (
       line.length <= 48
@@ -113,24 +117,17 @@
   }
 
   function getConversationNodes() {
-    const nodes = SELECTORS.conversationItems.flatMap((selector) => [...document.querySelectorAll(selector)]);
-    // Some message-list builds do not expose a stable list-item selector. Infer
-    // a row from its avatar only when the surrounding text is short enough to be
-    // a conversation preview, which keeps page-level containers out of the list.
-    document.querySelectorAll('img, [class*="avatar"]').forEach((avatar) => {
-      let current = avatar.parentElement;
-      for (let depth = 0; current && depth < 5; depth += 1, current = current.parentElement) {
-        const text = (current.innerText || '').trim();
-        const rect = current.getBoundingClientRect();
-        if (text && text.length <= 180 && rect.height >= 32 && rect.height <= 180 && rect.width >= 100) {
-          nodes.push(current);
-          break;
-        }
-      }
-    });
-    return uniqueNodes(nodes)
-      .map((node) => ({ node, name: displayName(node) }))
-      .filter(({ node, name }) => name && node.querySelector('img, [class*="avatar"]'));
+    const dialog = messageDialog();
+    const exactRows = uniqueNodes([...dialog.querySelectorAll('[data-e2e="conversation-item"]')]);
+    const rows = exactRows.length
+      ? exactRows
+      : uniqueNodes(SELECTORS.conversationItems.flatMap((selector) => [...dialog.querySelectorAll(selector)]));
+    return rows
+      .map((node) => {
+        const title = node.querySelector('.conversationConversationItemtitle, [data-e2e*="conversation-title"]');
+        return { node, name: title ? textLines(title)[0] : displayName(node) };
+      })
+      .filter(({ name }) => name);
   }
 
   function closestConversationNode(node) {
@@ -147,7 +144,7 @@
 
     // Manual targets use a limited text fallback. Prefer the smallest visible match
     // to avoid treating the entire message page as one conversation.
-    const matches = uniqueNodes([...document.querySelectorAll('a, button, [role="listitem"], li, div, span')])
+    const matches = uniqueNodes([...messageDialog().querySelectorAll('a, button, [role="listitem"], li, div, span')])
       .filter((node) => textLines(node).includes(name))
       .sort((left, right) => (left.innerText || '').length - (right.innerText || '').length);
     return matches.length ? closestConversationNode(matches[0]) : null;
@@ -209,24 +206,27 @@
   }
 
   function activeTitleMatches(name) {
+    const dialog = messageDialog();
     const titleNodes = [
-      ...SELECTORS.conversationTitle.flatMap((selector) => [...document.querySelectorAll(selector)]),
-      ...document.querySelectorAll('h1, h2'),
+      ...SELECTORS.conversationTitle.flatMap((selector) => [...dialog.querySelectorAll(selector)]),
+      ...dialog.querySelectorAll('h1, h2'),
     ];
     return uniqueNodes(titleNodes).some((node) => textLines(node).some((line) => line.includes(name)));
   }
 
   function visibleMessageInput() {
+    const dialog = messageDialog();
     for (const selector of SELECTORS.messageInputs) {
-      const input = uniqueNodes([...document.querySelectorAll(selector)])[0];
+      const input = uniqueNodes([...dialog.querySelectorAll(selector)])[0];
       if (input) return input;
     }
     return null;
   }
 
   function visibleSendControl() {
+    const dialog = messageDialog();
     for (const selector of SELECTORS.sendControls) {
-      const control = uniqueNodes([...document.querySelectorAll(selector)])[0];
+      const control = uniqueNodes([...dialog.querySelectorAll(selector)])[0];
       if (control) return control;
     }
     return null;
@@ -272,6 +272,7 @@
       }
     }
     input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: message }));
+    return inputText(input) === normalizeMessage(message);
   }
 
   function normalizeMessage(message) {
@@ -285,7 +286,9 @@
   async function sendMessage(message) {
     const input = await waitFor(visibleMessageInput);
     if (!input) return '未找到消息输入框。';
-    writeMessage(input, message);
+    const written = writeMessage(input, message);
+    const ready = written || await waitFor(() => inputText(input) === normalizeMessage(message), 1000);
+    if (!ready) return '消息未写入输入框，已取消发送。';
     const sendControl = await waitFor(visibleSendControl);
     if (!sendControl) return '未找到发送控件。';
     clickElement(sendControl);
@@ -320,7 +323,7 @@
       saveState();
       await new Promise((resolve) => setTimeout(resolve, 800));
     }
-    notify(state.dryRun ? '验证完成：未发送任何消息。' : '任务完成。', 'success');
+    notify(state.dryRun ? '验证完成：已检查会话、输入区和发送控件，未发送任何消息。' : '任务完成。', 'success');
   }
 
   function applyPanelPosition(root) {
@@ -369,7 +372,7 @@
       <header><strong>Spark Helper</strong><button data-action="minimize" title="最小化">_</button></header>
       <main>
         <label class="switch"><input data-role="enabled" type="checkbox" ${state.enabled ? 'checked' : ''}>启用任务</label>
-        <label class="switch"><input data-role="dry-run" type="checkbox" ${state.dryRun ? 'checked' : ''}>Dry Run</label>
+        <label class="switch"><input data-role="dry-run" type="checkbox" ${state.dryRun ? 'checked' : ''}>Dry Run（仅验证，不发送）</label>
         <label>消息模板<textarea data-role="template" rows="3">${escapeHtml(state.template)}</textarea></label>
         <div class="manual-target"><input data-role="manual-target" placeholder="好友昵称或备注名"><button data-action="add-target">添加</button></div>
         <div class="actions"><button data-action="refresh">刷新会话</button><button data-action="run">立即执行</button></div>

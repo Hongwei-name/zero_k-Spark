@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.6 - 2026-09-03
+
+- Restrict friend discovery to actual conversation rows inside the Douyin message drawer.
+- Exclude page navigation, download cards, and footer content from the friend list.
+- Cancel a send when the message text cannot be confirmed in the editor, preventing blank-message clicks.
+- Clarify the Dry Run switch and its successful verification status.
+
 ## 1.0.5 - 2026-09-03
 
 - Send messages through the verified SVG send control using native pointer and mouse events.
