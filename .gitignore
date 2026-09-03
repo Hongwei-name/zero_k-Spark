@@ -1,0 +1,16 @@
+.env
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+data/*.db
+data/screenshots/*
+data/traces/*
+!data/.gitkeep
+!data/screenshots/.gitkeep
+!data/traces/.gitkeep
+playwright-report/
+test-results/
+node_modules/
+dist/
