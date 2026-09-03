@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Douyin Spark Helper (Local)
 // @namespace    https://github.com/zero-k-spark
-// @version      1.0.2
+// @version      1.0.3
 // @description  Local conversation selection and dry-run helper for Douyin web messages.
 // @match        https://www.douyin.com/*
 // @grant        none
@@ -204,17 +204,15 @@
     return uniqueNodes(titleNodes).some((node) => textLines(node).some((line) => line.includes(name)));
   }
 
-  function isSelectedConversation(node) {
-    const selected = node.getAttribute('aria-selected') === 'true'
-      || node.getAttribute('aria-current') === 'true'
-      || node.dataset.selected === 'true'
-      || node.dataset.active === 'true';
-    const className = typeof node.className === 'string' ? node.className : '';
-    return selected || /(^|\s)(active|selected|current)(\s|$)/i.test(className);
+  function visibleMessageInput() {
+    return uniqueNodes([...document.querySelectorAll(SELECTORS.messageInput)])[0] || null;
   }
 
-  async function confirmConversation(name, node) {
-    return waitFor(() => activeTitleMatches(name) || isSelectedConversation(node), 2500);
+  async function openConversation(name, node) {
+    node.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window }));
+    node.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window }));
+    node.click();
+    return waitFor(() => activeTitleMatches(name) || visibleMessageInput(), 3000);
   }
 
   function writeMessage(input, message) {
@@ -237,7 +235,7 @@
   }
 
   async function sendMessage(message) {
-    const input = await waitFor(() => document.querySelector(SELECTORS.messageInput));
+    const input = await waitFor(visibleMessageInput);
     if (!input) return '未找到消息输入框。';
     writeMessage(input, message);
     const sendButton = await waitFor(() => document.querySelector(SELECTORS.sendButton));
@@ -258,9 +256,8 @@
 
     for (const { name, node } of targets) {
       notify(`正在验证会话：${name}`);
-      node.click();
-      const confirmed = await confirmConversation(name, node);
-      if (!confirmed) return notify(`已停止：未能确认“${name}”已被选中。`, 'error');
+      const opened = await openConversation(name, node);
+      if (!opened) return notify(`已停止：无法打开“${name}”的聊天窗口。`, 'error');
       const message = resolveMessage(name);
       if (state.dryRun) {
         console.info('[Spark Helper] Dry run:', { recipient: name, message });

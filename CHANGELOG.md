@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.3 - 2026-09-03
+
+- Open target conversations with simulated pointer interaction before each task.
+- Verify that the chat is open from the visible chat title or message input, without requiring a selected-state marker on the conversation row.
+
 ## 1.0.2 - 2026-09-03
 
 - Fixed checkbox sizing in the control panel.
