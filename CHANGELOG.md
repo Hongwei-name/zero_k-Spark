@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.2 - 2026-09-03
+
+- Fixed checkbox sizing in the control panel.
+- Confirm the selected conversation using either its active state or the visible chat title, instead of assuming a heading tag.
+- Added `scripts/Release.ps1` to increment the Tampermonkey version consistently for future releases.
+
 ## 1.0.1 - 2026-09-03
 
 - Fixed conversation discovery for current Douyin web message-list variants.

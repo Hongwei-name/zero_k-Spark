@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Douyin Spark Helper (Local)
 // @namespace    https://github.com/zero-k-spark
-// @version      1.0.1
+// @version      1.0.2
 // @description  Local conversation selection and dry-run helper for Douyin web messages.
 // @match        https://www.douyin.com/*
 // @grant        none
@@ -37,6 +37,9 @@
       '[class*="message-detail"] h2',
       '[class*="chat-detail"] h1',
       '[class*="chat-detail"] h2',
+      '[class*="message-header"] [class*="title"]',
+      '[class*="chat-header"] [class*="title"]',
+      '[class*="message-detail"] [class*="title"]',
     ],
     messageInput: '[contenteditable="true"], textarea',
     sendButton: 'button[type="submit"], [data-e2e*="send"], [class*="send-button"]',
@@ -201,6 +204,19 @@
     return uniqueNodes(titleNodes).some((node) => textLines(node).some((line) => line.includes(name)));
   }
 
+  function isSelectedConversation(node) {
+    const selected = node.getAttribute('aria-selected') === 'true'
+      || node.getAttribute('aria-current') === 'true'
+      || node.dataset.selected === 'true'
+      || node.dataset.active === 'true';
+    const className = typeof node.className === 'string' ? node.className : '';
+    return selected || /(^|\s)(active|selected|current)(\s|$)/i.test(className);
+  }
+
+  async function confirmConversation(name, node) {
+    return waitFor(() => activeTitleMatches(name) || isSelectedConversation(node), 2500);
+  }
+
   function writeMessage(input, message) {
     input.focus();
     if (input.matches('textarea, input')) {
@@ -243,8 +259,8 @@
     for (const { name, node } of targets) {
       notify(`正在验证会话：${name}`);
       node.click();
-      await new Promise((resolve) => setTimeout(resolve, 600));
-      if (!activeTitleMatches(name)) return notify(`已停止：当前会话标题与“${name}”不一致。`, 'error');
+      const confirmed = await confirmConversation(name, node);
+      if (!confirmed) return notify(`已停止：未能确认“${name}”已被选中。`, 'error');
       const message = resolveMessage(name);
       if (state.dryRun) {
         console.info('[Spark Helper] Dry run:', { recipient: name, message });
@@ -336,10 +352,11 @@
     #zero-k-spark-panel.dragging { opacity:.92; } #zero-k-spark-panel header button { border:0; color:#fff; background:transparent; cursor:pointer; }
     #zero-k-spark-panel main { display:grid; min-height:0; gap:9px; overflow:auto; padding:12px; } #zero-k-spark-panel.collapsed main { display:none; }
     #zero-k-spark-panel label { display:grid; gap:4px; } #zero-k-spark-panel .switch { display:flex; align-items:center; gap:6px; }
-    #zero-k-spark-panel textarea, #zero-k-spark-panel input { box-sizing:border-box; width:100%; border:1px solid #94a3b8; border-radius:3px; padding:6px; font:inherit; } #zero-k-spark-panel textarea { resize:vertical; }
+    #zero-k-spark-panel textarea, #zero-k-spark-panel input:not([type="checkbox"]) { box-sizing:border-box; width:100%; border:1px solid #94a3b8; border-radius:3px; padding:6px; font:inherit; } #zero-k-spark-panel textarea { resize:vertical; }
+    #zero-k-spark-panel input[type="checkbox"] { box-sizing:border-box; width:16px; height:16px; margin:0; padding:0; accent-color:#1677ff; }
     #zero-k-spark-panel .actions, #zero-k-spark-panel .manual-target { display:flex; gap:8px; } #zero-k-spark-panel .manual-target input { min-width:0; }
     #zero-k-spark-panel button { flex:0 0 auto; padding:6px 10px; border:1px solid #94a3b8; border-radius:3px; background:#f8fafc; color:#1e293b; cursor:pointer; }
-    #zero-k-spark-panel .targets { max-height:150px; overflow:auto; border-top:1px solid #e2e8f0; border-bottom:1px solid #e2e8f0; padding:7px 0; } #zero-k-spark-panel .targets label { display:flex; align-items:center; gap:6px; padding:3px 0; } #zero-k-spark-panel .targets input { width:auto; } #zero-k-spark-panel .targets p { margin:0; color:#475569; }
+    #zero-k-spark-panel .targets { max-height:150px; overflow:auto; border-top:1px solid #e2e8f0; border-bottom:1px solid #e2e8f0; padding:7px 0; } #zero-k-spark-panel .targets label { display:flex; align-items:center; gap:6px; padding:3px 0; } #zero-k-spark-panel .targets p { margin:0; color:#475569; }
     #zero-k-spark-panel output { min-height:18px; color:#475569; } #zero-k-spark-panel output[data-level="error"] { color:#b91c1c; } #zero-k-spark-panel output[data-level="success"] { color:#15803d; }
   `;
   document.head.append(style);
