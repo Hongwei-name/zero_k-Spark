@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Douyin Spark Helper (Local)
 // @namespace    https://github.com/zero-k-spark
-// @version      1.0.3
+// @version      1.0.4
 // @description  Local conversation selection and dry-run helper for Douyin web messages.
 // @match        https://www.douyin.com/*
 // @grant        none
@@ -23,6 +23,7 @@
   // Centralize target-page selectors so updates do not affect panel behavior.
   const SELECTORS = {
     conversationItems: [
+      '[data-e2e="conversation-item"]',
       '[data-e2e*="conversation"]',
       '[data-e2e*="message"] [data-e2e*="item"]',
       '[class*="conversation"] [role="listitem"]',
@@ -31,6 +32,7 @@
       '[class*="conversation-list"] > *',
     ],
     conversationTitle: [
+      '.StackLayoutStackChatHeadertitle',
       '[data-e2e*="conversation-title"]',
       '[data-e2e*="chat-title"]',
       '[class*="message-detail"] h1',
@@ -41,8 +43,18 @@
       '[class*="chat-header"] [class*="title"]',
       '[class*="message-detail"] [class*="title"]',
     ],
-    messageInput: '[contenteditable="true"], textarea',
-    sendButton: 'button[type="submit"], [data-e2e*="send"], [class*="send-button"]',
+    messageInputs: [
+      '[data-e2e="msg-input"] [contenteditable="true"]',
+      '[contenteditable="true"]',
+      'textarea',
+    ],
+    sendControls: [
+      '[data-e2e="msg-input"] .e2e-send-msg-btn',
+      '[data-e2e="msg-input"] .messageMsgInputpublishBtn',
+      'button[type="submit"]',
+      '[data-e2e*="send"]',
+      '[class*="send-button"]',
+    ],
   };
 
   const state = loadState();
@@ -205,7 +217,23 @@
   }
 
   function visibleMessageInput() {
-    return uniqueNodes([...document.querySelectorAll(SELECTORS.messageInput)])[0] || null;
+    for (const selector of SELECTORS.messageInputs) {
+      const input = uniqueNodes([...document.querySelectorAll(selector)])[0];
+      if (input) return input;
+    }
+    return null;
+  }
+
+  function visibleSendControl() {
+    for (const selector of SELECTORS.sendControls) {
+      const control = uniqueNodes([...document.querySelectorAll(selector)])[0];
+      if (control) return control;
+    }
+    return null;
+  }
+
+  function validateComposer() {
+    return { input: visibleMessageInput(), sendControl: visibleSendControl() };
   }
 
   async function openConversation(name, node) {
@@ -238,9 +266,9 @@
     const input = await waitFor(visibleMessageInput);
     if (!input) return '未找到消息输入框。';
     writeMessage(input, message);
-    const sendButton = await waitFor(() => document.querySelector(SELECTORS.sendButton));
-    if (!sendButton) return '未找到发送按钮。';
-    sendButton.click();
+    const sendControl = await waitFor(visibleSendControl);
+    if (!sendControl) return '未找到发送控件。';
+    sendControl.click();
     const sent = await waitFor(() => inputText(input) !== message.replace(/\s+/g, ' ').trim(), 3000);
     return sent ? '' : '消息未离开输入框，未标记为发送成功。';
   }
@@ -260,6 +288,9 @@
       if (!opened) return notify(`已停止：无法打开“${name}”的聊天窗口。`, 'error');
       const message = resolveMessage(name);
       if (state.dryRun) {
+        const composer = validateComposer();
+        if (!composer.input) return notify(`“${name}”验证失败：未找到聊天输入区。`, 'error');
+        if (!composer.sendControl) return notify(`“${name}”验证失败：未找到发送控件。`, 'error');
         console.info('[Spark Helper] Dry run:', { recipient: name, message });
         continue;
       }

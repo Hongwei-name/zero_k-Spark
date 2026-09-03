@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.4 - 2026-09-03
+
+- Adapted the conversation row, chat title, message editor, and send-control selectors to the verified Douyin web message drawer.
+- Dry Run now verifies the conversation, message editor, and send control without entering text or clicking send.
+
 ## 1.0.3 - 2026-09-03
 
 - Open target conversations with simulated pointer interaction before each task.
