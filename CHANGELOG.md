@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.10 - 2026-09-03
+
+- Restore the native click path for the verified HTML “消息” entry so it opens the message list; retain the SVG-specific event dispatch only for the send icon.
+- Treat an appeared conversation row as confirmation that the message list opened, including layouts without the legacy drawer wrapper.
+
 ## 1.0.9 - 2026-09-03
 
 - Fix real send-button activation: Douyin's send control is an SVG, so dispatch a bubbling mouse click instead of calling the unavailable SVG `.click()` method.

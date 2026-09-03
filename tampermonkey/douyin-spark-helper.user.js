@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Douyin Spark Helper (Local)
 // @namespace    https://github.com/zero-k-spark
-// @version      1.0.9
+// @version      1.0.10
 // @description  Local conversation selection and dry-run helper for Douyin web messages.
 // @match        https://www.douyin.com/*
 // @grant        none
@@ -134,11 +134,13 @@
 
   function getConversationNodes() {
     const dialog = messageDialog();
-    if (!dialog) return [];
-    const exactRows = uniqueNodes([...dialog.querySelectorAll('[data-e2e="conversation-item"]')]);
+    const scope = dialog || document;
+    const exactRows = uniqueNodes([...scope.querySelectorAll('[data-e2e="conversation-item"]')]);
     const rows = exactRows.length
       ? exactRows
-      : uniqueNodes(SELECTORS.conversationItems.flatMap((selector) => [...dialog.querySelectorAll(selector)]));
+      : dialog
+        ? uniqueNodes(SELECTORS.conversationItems.flatMap((selector) => [...dialog.querySelectorAll(selector)]))
+        : [];
     return rows
       .map((node) => {
         const title = node.querySelector('.conversationConversationItemtitle, [data-e2e*="conversation-title"]');
@@ -269,10 +271,10 @@
       target.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerId: 1, pointerType: 'mouse', isPrimary: true }));
     }
     target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window }));
-    // Douyin's send control is an SVGElement. Unlike HTMLButtonElement it does
-    // not reliably expose .click(), which previously threw and left the task at
-    // “正在点击发送”. Dispatch the bubbling click React listens for instead.
-    target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+    // The message entry is a normal HTML div and its native click path opens the
+    // drawer. The send control is SVG, which has no reliable .click() method.
+    if (target instanceof HTMLElement) target.click();
+    else target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
   }
 
   function visibleFirst(selectors, root = document) {
@@ -293,7 +295,7 @@
     const entry = findMessageEntry();
     if (!entry) return false;
     clickElement(entry);
-    return Boolean(await waitFor(messageDialog, 5000));
+    return Boolean(await waitFor(() => messageDialog() || getConversationNodes().length, 5000));
   }
 
   async function ensureConversationListOpen() {
