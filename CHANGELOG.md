@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.11 - 2026-09-03
+
+- Resolve the verified top-nav “消息” control from its `p.phl13lpd` label as a fallback when CSS-module classes change.
+- Retry the opening click on the entry wrapper for layouts that bind the message-list handler to the parent container.
+
 ## 1.0.10 - 2026-09-03
 
 - Restore the native click path for the verified HTML “消息” entry so it opens the message list; retain the SVG-specific event dispatch only for the send icon.

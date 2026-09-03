@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Douyin Spark Helper (Local)
 // @namespace    https://github.com/zero-k-spark
-// @version      1.0.10
+// @version      1.0.11
 // @description  Local conversation selection and dry-run helper for Douyin web messages.
 // @match        https://www.douyin.com/*
 // @grant        none
@@ -287,7 +287,15 @@
 
   function findMessageEntry() {
     const entries = SELECTORS.messageEntry.flatMap((selector) => [...document.querySelectorAll(selector)]);
-    return uniqueNodes(entries).find((node) => textLines(node).includes('消息')) || null;
+    const directEntry = uniqueNodes(entries).find((node) => textLines(node).includes('消息'));
+    if (directEntry) return directEntry;
+
+    // Verified current navigation markup: <p class="phl13lpd">消息</p>
+    // inside <div data-e2e="something-button">. Resolve from the label so a
+    // CSS-module class change on the outer button cannot hide the entry.
+    const label = uniqueNodes([...document.querySelectorAll('p.phl13lpd')])
+      .find((node) => textLines(node).includes('消息'));
+    return label?.closest('[data-e2e="something-button"]') || label?.parentElement || null;
   }
 
   async function ensureMessageDialogOpen() {
@@ -295,7 +303,14 @@
     const entry = findMessageEntry();
     if (!entry) return false;
     clickElement(entry);
-    return Boolean(await waitFor(() => messageDialog() || getConversationNodes().length, 5000));
+    if (await waitFor(() => messageDialog() || getConversationNodes().length, 2500)) return true;
+
+    // Some current layouts bind the opening handler to the parent wrapper
+    // instead of the visible `something-button` child.
+    const wrapper = entry.parentElement;
+    if (!wrapper || !isVisible(wrapper)) return false;
+    clickElement(wrapper);
+    return Boolean(await waitFor(() => messageDialog() || getConversationNodes().length, 3000));
   }
 
   async function ensureConversationListOpen() {
