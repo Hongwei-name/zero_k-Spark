@@ -7,6 +7,7 @@
 ## 目录
 
 - `apps/api/`：FastAPI 管理接口与任务调度入口
+- `apps/desktop/`：Windows 本地配置客户端
 - `apps/web/`：管理界面预留目录
 - `packages/automation/`：Playwright 浏览器自动化实现
 - `packages/core/`：配置、数据库模型与通用领域逻辑
@@ -30,3 +31,11 @@ uvicorn apps.api.main:app --reload
 ## 安装油猴脚本
 
 在 Tampermonkey 中新建脚本，将 `tampermonkey/douyin-spark-helper.user.js` 的内容粘贴保存；然后打开抖音网页版私信页面。脚本默认只做定位验证，不会发消息。
+
+## Windows 客户端
+
+```powershell
+python -m apps.desktop.main
+```
+
+客户端保存好友、文案、发送窗口、Dry Run 设置和本地执行记录到 `data/spark-client.json`。实际网页私信操作由已安装的油猴脚本执行。
