@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Douyin Spark Helper (Local)
 // @namespace    https://github.com/zero-k-spark
-// @version      1.0.4
+// @version      1.0.5
 // @description  Local conversation selection and dry-run helper for Douyin web messages.
 // @match        https://www.douyin.com/*
 // @grant        none
@@ -236,10 +236,20 @@
     return { input: visibleMessageInput(), sendControl: visibleSendControl() };
   }
 
-  async function openConversation(name, node) {
+  function clickElement(node) {
+    if (window.PointerEvent) {
+      node.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerId: 1, pointerType: 'mouse', isPrimary: true }));
+    }
     node.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window }));
+    if (window.PointerEvent) {
+      node.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerId: 1, pointerType: 'mouse', isPrimary: true }));
+    }
     node.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window }));
     node.click();
+  }
+
+  async function openConversation(name, node) {
+    clickElement(node);
     return waitFor(() => activeTitleMatches(name) || visibleMessageInput(), 3000);
   }
 
@@ -252,14 +262,24 @@
     } else {
       const range = document.createRange();
       range.selectNodeContents(input);
-      range.deleteContents();
-      range.insertNode(document.createTextNode(message));
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      const inserted = document.execCommand?.('insertText', false, message);
+      if (!inserted || inputText(input) !== normalizeMessage(message)) {
+        range.deleteContents();
+        range.insertNode(document.createTextNode(message));
+      }
     }
     input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: message }));
   }
 
+  function normalizeMessage(message) {
+    return String(message).replace(/[\s\u200B]+/g, ' ').trim();
+  }
+
   function inputText(input) {
-    return (input.value || input.textContent || '').replace(/\s+/g, ' ').trim();
+    return normalizeMessage(input.value || input.textContent || '');
   }
 
   async function sendMessage(message) {
@@ -268,8 +288,8 @@
     writeMessage(input, message);
     const sendControl = await waitFor(visibleSendControl);
     if (!sendControl) return '未找到发送控件。';
-    sendControl.click();
-    const sent = await waitFor(() => inputText(input) !== message.replace(/\s+/g, ' ').trim(), 3000);
+    clickElement(sendControl);
+    const sent = await waitFor(() => inputText(input) === '', 3000);
     return sent ? '' : '消息未离开输入框，未标记为发送成功。';
   }
 

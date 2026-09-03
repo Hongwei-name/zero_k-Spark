@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.5 - 2026-09-03
+
+- Send messages through the verified SVG send control using native pointer and mouse events.
+- Use the browser's native text insertion path for the Slate message editor and normalize its zero-width placeholder before confirming send success.
+
 ## 1.0.4 - 2026-09-03
 
 - Adapted the conversation row, chat title, message editor, and send-control selectors to the verified Douyin web message drawer.
