@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.12 - 2026-09-03
+
+- Fix message-list opening against the saved live homepage DOM: click the actionable `something-button` nested inside `im-entry`, rather than its non-interactive wrapper.
+
 ## 1.0.11 - 2026-09-03
 
 - Resolve the verified top-nav “消息” control from its `p.phl13lpd` label as a fallback when CSS-module classes change.

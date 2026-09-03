@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Douyin Spark Helper (Local)
 // @namespace    https://github.com/zero-k-spark
-// @version      1.0.11
+// @version      1.0.12
 // @description  Local conversation selection and dry-run helper for Douyin web messages.
 // @match        https://www.douyin.com/*
 // @grant        none
@@ -286,13 +286,20 @@
   }
 
   function findMessageEntry() {
+    // The verified markup nests the actionable `something-button` inside the
+    // `im-entry` wrapper. Clicking the wrapper does not dispatch into its child.
+    const imEntries = uniqueNodes([...document.querySelectorAll('[data-e2e="im-entry"]')]);
+    for (const entry of imEntries) {
+      const button = uniqueNodes([...entry.querySelectorAll('[data-e2e="something-button"]')])
+        .find((node) => textLines(node).includes('消息'));
+      if (button) return button;
+    }
+
     const entries = SELECTORS.messageEntry.flatMap((selector) => [...document.querySelectorAll(selector)]);
     const directEntry = uniqueNodes(entries).find((node) => textLines(node).includes('消息'));
     if (directEntry) return directEntry;
 
-    // Verified current navigation markup: <p class="phl13lpd">消息</p>
-    // inside <div data-e2e="something-button">. Resolve from the label so a
-    // CSS-module class change on the outer button cannot hide the entry.
+    // Resolve from the label if CSS-module classes on the button change.
     const label = uniqueNodes([...document.querySelectorAll('p.phl13lpd')])
       .find((node) => textLines(node).includes('消息'));
     return label?.closest('[data-e2e="something-button"]') || label?.parentElement || null;
